@@ -1,35 +1,31 @@
-import time
+import sys
 from pathlib import Path
 from collections import defaultdict
 from PyQt5 import QtCore, QtGui, QtWidgets
-
 import requests
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(sys.argv[0]).resolve().parent
 PIC_DIR = BASE_DIR/"pics"
 PIC_DIR.mkdir(exist_ok=True)
-BASE_URL = "https://storage.googleapis.com/ygoprodeck.com/pics/"
+BASE_URL = "https://images.ygoprodeck.com/images/cards/"
 
 HEADERS = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
 
 def download_file(url, path):
-    r = requests.get(url, stream=True, headers=HEADERS)
-    if r.status_code == 200:
-        with path.open('wb') as f:
-            for chunk in r:
-                f.write(chunk)
-        return True
-    return False
+    r = requests.get(url, headers=HEADERS)
+    if r.status_code != 200:
+        print(f"Error downloading {url}")
+        return False
+    with path.open('wb') as f:
+        f.write(r.content)
+    return True
 
 def download_pic_by_id(card_id):
-    for suffix in [".jpg", ".png"]:
-        path = (PIC_DIR/card_id).with_suffix(suffix)
-        if path.exists():
-            return path
-    for suffix in [".jpg", ".png"]:
-        path = (PIC_DIR/card_id).with_suffix(suffix)
-        if download_file(BASE_URL+card_id+suffix, path):
-            return path
+    path = (PIC_DIR/card_id).with_suffix(".jpg")
+    if path.exists():
+        return path
+    if download_file(BASE_URL+card_id+".jpg", path):
+        return path
     return None
 
 def parse_ygo_deck(fname):

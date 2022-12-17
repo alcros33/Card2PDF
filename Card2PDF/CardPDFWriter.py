@@ -1,5 +1,5 @@
-from PyQt5.QtCore import QFile, QIODevice, QSizeF, QMarginsF
-from PyQt5.QtGui import QPainter, QPdfWriter, QPageSize, QPen
+from PyQt5.QtCore import QFile, QIODevice, QSizeF, QMarginsF, QPointF, QRectF
+from PyQt5.QtGui import QPainter, QPdfWriter, QPen
 
 from enum import Enum
 
@@ -32,7 +32,7 @@ class CardPDFWriter:
 
         self.painter = QPainter(self.writer)
         self.pen = QPen()
-        self.pen.setWidth(self.mm2pix([1])[0])
+        self.pen.setWidth(int(self.mm2pix([1])[0]))
         self.painter.setPen(self.pen)
         
         self.bleeding = [0,0]
@@ -48,13 +48,13 @@ class CardPDFWriter:
         # Horizontal lines
         pos = self.bleeding[0] - self.separation[0]/2
         while (pos < self.paperFormat[0]):
-            self.painter.drawLine(pos, 0, pos, self.paperFormat[1])
+            self.painter.drawLine(QPointF(pos, 0) , QPointF(pos, self.paperFormat[1]))
             pos += self.cardFormat[0] + self.separation[0]
         
         # Vertical lines
         pos = self.bleeding[1] - self.separation[1]/2
         while (pos < self.paperFormat[1]):
-            self.painter.drawLine(0, pos, self.paperFormat[0], pos)
+            self.painter.drawLine(QPointF(0, pos), QPointF(self.paperFormat[0], pos))
             pos += self.cardFormat[1] + self.separation[1]
 
     @assert_file_open
@@ -69,7 +69,8 @@ class CardPDFWriter:
                 self.cursor = self.bleeding[:]
                 self.addPage()
         
-            self.painter.drawPixmap(*self.cursor, *self.cardFormat, card)
+            self.painter.drawPixmap(QRectF(*self.cursor, *self.cardFormat), card, QRectF(0,0, card.width(), card.height()))
+            # self.painter.drawPixmap(*self.cursor, *self.cardFormat, card)
             self.cursor[0] += self.cardFormat[0] + self.separation[0]
 
             if self.cursor[0] > (self.paperFormat[0] - self.bleeding[0] - self.cardFormat[0]):
