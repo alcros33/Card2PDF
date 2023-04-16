@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
-from collections import defaultdict
+from collections import defaultdict, Counter
+import zlib, base64
 from PyQt5 import QtCore, QtGui, QtWidgets
 import requests
 
@@ -28,14 +29,12 @@ def download_pic_by_id(card_id):
         return path
     return None
 
-def parse_ygo_deck(fname):
-    cards = defaultdict(lambda: 0)
-    with fname.open("r") as f:
-        for line in f:
-            if line.startswith("#") or line.startswith("!"):
-                continue
-            cards[line[:-1]] += 1
-    return cards
+def parse_ygo_deck():
+    cb_contents = QtGui.QGuiApplication.clipboard().text()
+    print(cb_contents)
+    byte_data = zlib.decompress(base64.b64decode(cb_contents), -8)
+    ids = [int.from_bytes(byte_data[i:i+4], 'little') for i in range(2, len(byte_data[2:]), 4)]
+    return Counter(ids[:byte_data[0]+byte_data[1]])
 
 class DialogPBar(QtWidgets.QDialog):
     def __init__(self,parent, title, msg):
@@ -81,38 +80,21 @@ class YGOProParser:
     def __init__(self, parent):
         self.parent = parent
         parent.menuYGOPro = QtWidgets.QMenu(parent.menubar)
-        parent.menuYGOPro.setObjectName("menuYGOPro")
-        parent.menuYGOPro.setTitle("YGOPro")
+        parent.menuYGOPro.setObjectName("menuImport")
+        parent.menuYGOPro.setTitle("Import")
 
         parent.actionYGOProDeck = QtWidgets.QAction(parent)
-        parent.actionYGOProDeck.setObjectName("actionParseYGOProDeck")
+        parent.actionYGOProDeck.setObjectName("actionParseOmegaDeck")
         parent.menuYGOPro.addAction(parent.actionYGOProDeck)
-        parent.actionYGOProDeck.setText("Import YGOPro Deck")
-        
-        parent.actionYGOProFolder = QtWidgets.QAction(parent)
-        parent.actionYGOProFolder.setObjectName("actionYGOProFolder")
-        parent.menuYGOPro.addAction(parent.actionYGOProFolder)
-        parent.actionYGOProFolder.setText("Change YGOPro Deck Folder")
+        parent.actionYGOProDeck.setText("Import Omega Code from clipboard")
         parent.menubar.addAction(parent.menuYGOPro.menuAction())
-
-        parent.actionYGOProFolder.triggered.connect(self.changeYGOProDir)
         parent.actionYGOProDeck.triggered.connect(self.parseYGOProDeck)
     
-    def changeYGOProDir(self):
-        dirName = QtWidgets.QFileDialog.getExistingDirectory(self.parent,
-                "Select the Deck folder of your ygopro", self.parent.settings["YGOPro Deck Folder"], QtWidgets.QFileDialog.ShowDirsOnly)
-        if not dirName:
-            return
-        self.parent.settings["YGOPro Deck Folder"] = dirName
-        self.parent.flushSettings()
-    
     def parseYGOProDeck(self):
-        fname, ok = QtWidgets.QFileDialog.getOpenFileName(self.parent, "Select the ygopro deck",
-            self.parent.settings["YGOPro Deck Folder"], "YGOPro Decks (*.ydk);;All Files (*)")
-        if not ok:
-            return
-        # Read file
-        card2num = parse_ygo_deck(Path(fname).resolve())
+        try:
+            card2num = parse_ygo_deck()
+        except RuntimeError:
+            print("Error in file")
         path2num = dict()
         not_found = []
         # Progressbar dialog
@@ -120,7 +102,7 @@ class YGOProParser:
         dia.progress.setValue(0)
         # Define work callable
         def work(card_id):
-            path = download_pic_by_id(card_id)
+            path = download_pic_by_id(str(card_id))
             if path is None:
                 not_found.append(card_id)
             else:
